@@ -234,7 +234,7 @@ public abstract class BaseJniExtractor implements JniExtractor {
 				// extract its own deps first
 				extractDependenciesFor(file);
 				// extract the dep itself
-				final URL dep = this.getClass().getResource(file);
+				final URL dep = this.getClass().getClassLoader().getResource(file);
 				if (dep == null) {
 					debug("Not found: " + file);
 				} else {
