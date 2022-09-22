@@ -163,6 +163,7 @@ public abstract class BaseJniExtractor implements JniExtractor {
 		// foolproof
 		String combinedPath = (libPath.equals("") || libPath.endsWith(NativeLibraryUtil.DELIM) ?
 				libPath : libPath + NativeLibraryUtil.DELIM) + mappedlibName;
+		extractDependenciesFor(combinedPath);
 		lib = libraryJarClass.getClassLoader().getResource(combinedPath);
 		if (null == lib) {
 			/*
@@ -197,6 +198,56 @@ public abstract class BaseJniExtractor implements JniExtractor {
 		}
 		debug("Couldn't find resource " + combinedPath);
 		return null;
+	}
+
+	/**
+	 * Locates the dependency descriptor ("*.DEPENDENCIES" file) and attempts to load all libraries mentioned there.
+	 * Each line in it, except comments, represents one dependency to be loaded.
+	 * <p>
+	 * The process is recursive, i.e. each dependency can bring its own dependencies.
+	 * <p>
+	 * Every dependency is expected to reside at the same resource location as the descriptor.
+	 * Missing libraries are ignored, as we expect the OS to provide them.
+	 *
+	 * @param lib name of the library for which we want dependencies to load
+	 */
+	private void extractDependenciesFor(String lib) throws IOException {
+		final Enumeration<URL> resources = this.getClass().getClassLoader().getResources(lib + ".DEPENDENCIES");
+		while (resources.hasMoreElements()) {
+			extractDependencies(resources.nextElement(), lib);
+		}
+	}
+
+	private void extractDependencies(URL dependenciesDesc, String lib) throws IOException {
+		debug("Extracting dependencies listed in " + dependenciesDesc);
+		BufferedReader reader = null;
+		try {
+			final String base = lib
+					.replace('\\', '/')
+					.replaceFirst("/[^/]*$", "/");
+			final URLConnection connection = dependenciesDesc.openConnection();
+			connection.setUseCaches(false);
+			reader = new BufferedReader(new InputStreamReader(connection.getInputStream(), "UTF-8"));
+			for (String line; (line = reader.readLine()) != null;) {
+				if (line.startsWith("#")) continue;
+				final String file = base + line;
+				// extract its own deps first
+				extractDependenciesFor(file);
+				// extract the dep itself
+				final URL dep = this.getClass().getClassLoader().getResource(file);
+				if (dep == null) {
+					debug("Not found: " + file);
+				} else {
+					extractResource(getNativeDir(), dep, line);
+				}
+			}
+			debug("Completed dependencies: " + dependenciesDesc);
+		}
+		finally {
+			if (reader != null) {
+				reader.close();
+			}
+		}
 	}
 
 	@Override
