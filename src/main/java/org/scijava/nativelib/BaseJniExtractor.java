@@ -163,6 +163,7 @@ public abstract class BaseJniExtractor implements JniExtractor {
 		// foolproof
 		String combinedPath = (libPath.equals("") || libPath.endsWith(NativeLibraryUtil.DELIM) ?
 				libPath : libPath + NativeLibraryUtil.DELIM) + mappedlibName;
+		extractDependenciesFor(combinedPath);
 		lib = libraryJarClass.getClassLoader().getResource(combinedPath);
 		if (null == lib) {
 			/*
@@ -193,7 +194,6 @@ public abstract class BaseJniExtractor implements JniExtractor {
 		if (null != lib) {
 			debug("URL is " + lib.toString());
 			debug("URL path is " + lib.getPath());
-			extractDependenciesFor(combinedPath);
 			return extractResource(getJniDir(), lib, mappedlibName);
 		}
 		debug("Couldn't find resource " + combinedPath);
@@ -231,13 +231,13 @@ public abstract class BaseJniExtractor implements JniExtractor {
 			for (String line; (line = reader.readLine()) != null;) {
 				if (line.startsWith("#")) continue;
 				final String file = base + line;
+				// extract its own deps first
+				extractDependenciesFor(file);
+				// extract the dep itself
 				final URL dep = this.getClass().getResource(file);
 				if (dep == null) {
 					debug("Not found: " + file);
 				} else {
-					// extract its own deps first
-					extractDependenciesFor(file);
-					// extract the dep itself
 					extractResource(getNativeDir(), dep, line);
 				}
 			}
